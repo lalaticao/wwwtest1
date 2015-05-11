@@ -1,6 +1,3 @@
 <?php
-	echo "Hello world!";
-	#test
-	//test
-	/*test*/
+	echo "{\"i\":10, \"j\":2}";
 ?>

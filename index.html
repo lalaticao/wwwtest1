@@ -4,8 +4,10 @@
 		<meta charset="utf-8"></meta>
 		<script src="js/jquery-1.11.3.min.js"></script>
 		<script>
-			document.write("ok?");
-			$("#webfooter").load("index.html #para");
+			$(function(){
+				/*$.getJSON("a.php",function(data){document.write($("section").length);});*/
+				document.write($("section").length);
+			});
 		</script>
 	</head>
 	<body>
