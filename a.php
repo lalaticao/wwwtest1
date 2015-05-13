@@ -1,3 +1,3 @@
 <?php
-	echo "{\"i\":10, \"j\":2}";
+	echo json_encode();
 ?>
