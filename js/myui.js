@@ -242,10 +242,3 @@ extend(MyWindow.prototype, {
 		}
 	}
 });
-
-$(function () {
-
-	var myWindow = new MyWindow(500, 300, true, "black", 50, 50);
-	myWindow.open();
-	//myWindow.close();
-});
