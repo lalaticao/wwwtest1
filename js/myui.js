@@ -4,8 +4,12 @@ function extend(prototype, content) {
 		prototype[key] = content[key];
 	}
 }
+var myui = [];
 /** MyView */
-function MyView(viewWidth, viewHeight, x, y) { 
+function MyView(viewWidth, viewHeight, x, y) {
+	this.id = myui.length;
+	myui.push(this);
+	
 	var jq = $("<div/>", {
 		css: {
 			"margin": "0",
@@ -22,6 +26,8 @@ function MyView(viewWidth, viewHeight, x, y) {
 	jq.offset({ left: x, top: y });
 	
 	this.jQueryObject = jq;
+	this.parent = undefined;
+	this.children = [];
 }
 MyView.prototype = {constructor: MyView,
 	width: function () { 
@@ -49,23 +55,23 @@ MyView.prototype = {constructor: MyView,
 		this.offset(o);
 	},
 	addTo: function (target) { 
-		if (target instanceof MyView)
-			target = target.jQueryObject;
-		if (target instanceof $)
-			this.jQueryObject = this.jQueryObject.appendTo(target);
+		if (!target) {
+			this.jQueryObject = this.jQueryObject.appendTo($("body"));
+			this.parent = null;
+		}
+		else if (target instanceof MyView) { 
+			this.jQueryObject = this.jQueryObject.appendTo(target.jQueryObject);
+			this.parent = target;
+			target.children[this.id] = this;
+		}
 		return this;
 	},
-	insertBefore: function (target) { 
-		if (target instanceof MyView)
-			target = target.jQueryObject;
-		if (target instanceof $)
-			this.jQueryObject = this.jQueryObject.insertBefore(target);
-	},
-	insertAfter: function (target) { 
-		if (target instanceof MyView)
-			target = target.jQueryObject;
-		if (target instanceof $)
-			this.jQueryObject = this.jQueryObject.insertAfter(target);
+	remove: function () { 
+		this.jQueryObject = this.jQueryObject.detach();
+		if (this.parent) {
+			this.parent.children[this.id] = undefined;
+			this.parent = undefined;
+		}
 	}
 };
 /** MyFrame : MyView */
@@ -76,8 +82,9 @@ function MyFrame(frameWidth, frameHeight, borderWidth, borderColor, x, y) {
 		if (!borderColor)
 			borderColor = "black";
 		MyView.call(this, frameWidth - 2 * borderWidth, frameHeight - 2 * borderWidth, x, y);
-		this.jQueryObject.css("border", borderWidth.toString() + "px solid " + borderColor);
 		this.jQueryObject.addClass("myframe");
+		
+		this.jQueryObject.css("border", borderWidth.toString() + "px solid " + borderColor);
 	}
 	//else raise exception
 }
@@ -104,16 +111,43 @@ extend(MyFrame.prototype, {
 	}
 });
 /** MyButton : MyView */
-//...
-
+function MyButton(buttonWidth, buttonHeight, text, img, x, y) { 
+	MyView.call(this, buttonWidth, buttonHeight, x, y);
+	this.jQueryObject.addClass("mybutton");
+	
+	if (text) {
+		this.jQueryObject.text(text);
+		this.jQueryObject.css("text-align", "center");
+		this.jQueryObject.css("border", "1px solid black");
+	}
+	if (img)
+		this.jQueryObject.css({
+			"background-image": "url(\"" + img + "\")",
+			"background-repeat": "no-repeat",
+			"background-position": "center center",
+			"background-size": "cover"
+		});
+}
+MyButton.prototype = new MyView();
+extend(MyButton.prototype, {
+	constructor: MyFrame,
+	click: function () { 
+		if (arguments.length == 0)
+			return this.jQueryObject.click();
+		else
+			this.jQueryObject.click(arguments[0]);
+	},
+	//img and text
+});
 /** MyTitleBar : MyView */
 function MyTitleBar(titleBarHeight, color, title, x, y) { 
 	MyView.call(this, "100%", titleBarHeight, x, y);
+	this.jQueryObject.addClass("mytitlebar");
+	
 	if (color)
 		this.jQueryObject.css("background-color", color);
 	if (title)
 		this.jQueryObject.text(title);
-	this.jQueryObject.addClass("mytitlebar");
 }
 MyTitleBar.prototype = new MyView();
 extend(MyTitleBar.prototype, {
@@ -138,13 +172,39 @@ function MyWindow(windowWidth, windowHeight, hasTitleBar, title, x, y) {
 	var borderAndTitleBarColor = "#729fcf";
 	var titleBarHeight = 20;
 	MyFrame.call(this, windowWidth, windowHeight, borderWidth, borderAndTitleBarColor, x, y);
+	this.jQueryObject.addClass("mywindow");
+	
 	this.titleBar = new MyTitleBar(titleBarHeight, borderAndTitleBarColor, title, 0, 0);
+	this.closeBox = new MyButton(16, 16, "x");
 	this.contentView = new MyView(windowWidth - 2 * borderWidth, windowHeight - 2 * borderWidth, 0, 0);
 	
+	this.closeBox.jQueryObject.css({ "right": "0", "top": "0" });
+	this.closeBox.addTo(this.titleBar);
 	this.contentView.addTo(this);
 	if (hasTitleBar != false)
 		this.addTitleBar();
-	this.jQueryObject.addClass("mywindow");
+	
+	var mouseLoc;
+	var win = this;
+	this.closeBox.click(function () {
+		win.close();
+	});
+	this.titleBar.jQueryObject.bind('mousedown', function (jEvent) {
+		mouseLoc = { x: jEvent.clientX, y: jEvent.clientY };
+		var doc = $(document);
+		doc.bind("mousemove", function (je) {
+			win.move({ left: je.clientX - mouseLoc.x, top: je.clientY - mouseLoc.y });
+			mouseLoc = { x: je.clientX, y: je.clientY };
+			return false;
+		});
+		doc.bind("mouseup", function () {
+			doc.unbind("mouseup");
+			doc.unbind("mousemove");
+			return false;
+		});
+		
+		return false;
+	});
 }
 MyWindow.prototype = new MyFrame();
 extend(MyWindow.prototype, {
@@ -158,19 +218,34 @@ extend(MyWindow.prototype, {
 	},
 	removeTitleBar: function () { 
 		if (this.hasTitleBar()) { 
-			this.titleBar.jQueryObject.detach();
+			this.titleBar.remove();
 			this.contentView.height(this.height());
 			this.contentView.offset({ left: 0, top: 0 });
 		}
 	},
 	hasTitleBar: function () { 
 		return $(".mytitlebar", this.jQueryObject).length > 0;
+	},
+	isClosed: function () {
+		return true;
+	},
+	open: function () { 
+		if (this.isClosed()) {
+			this.addTo();
+			this.isClosed = function () { return false; };
+		}
+	},
+	close: function () { 
+		if (!this.isClosed()) { 
+			this.remove();
+			this.isClosed = function () { return true; };
+		}
 	}
 });
 
 $(function () {
 
 	var myWindow = new MyWindow(500, 300, true, "black", 50, 50);
-	myWindow.addTo($("body"));
-
+	myWindow.open();
+	//myWindow.close();
 });
